@@ -14,6 +14,67 @@ enum Inline: Hashable {
   case image(source: String, children: [Inline])
 }
 
+extension Sequence where Iterator.Element == Inline {
+  var text: String {
+    self.collect { inline in
+      guard case .text(let value) = inline else {
+        return []
+      }
+      return [value]
+    }
+    .joined()
+  }
+
+  func apply(_ transform: (Inline) throws -> [Inline]) rethrows -> [Inline] {
+    try self.flatMap { try $0.apply(transform) }
+  }
+
+  func collect<Value>(_ collect: (Inline) throws -> [Value]) rethrows -> [Value] {
+    try self.flatMap { try $0.collect(collect) }
+  }
+}
+
+extension Inline {
+  func apply(_ transform: (Inline) throws -> [Inline]) rethrows -> [Inline] {
+    switch self {
+    case .text, .softBreak, .lineBreak, .code, .html:
+      return try transform(self)
+    case .emphasis(let children):
+      return try transform(.emphasis(children.apply(transform)))
+    case .strong(let children):
+      return try transform(.strong(children.apply(transform)))
+    case .strikethrough(let children):
+      return try transform(.strikethrough(children.apply(transform)))
+    case .link(let destination, let children):
+      return try transform(.link(destination: destination, children: children.apply(transform)))
+    case .image(let source, let children):
+      return try transform(.image(source: source, children: children.apply(transform)))
+    }
+  }
+
+  func collect<Value>(_ collect: (Inline) throws -> [Value]) rethrows -> [Value] {
+    var values: [Value]
+
+    switch self {
+    case .text, .softBreak, .lineBreak, .code, .html:
+      values = []
+    case .emphasis(let children):
+      values = try children.collect(collect)
+    case .strong(let children):
+      values = try children.collect(collect)
+    case .strikethrough(let children):
+      values = try children.collect(collect)
+    case .link(_, let children):
+      values = try children.collect(collect)
+    case .image(_, let children):
+      values = try children.collect(collect)
+    }
+
+    values.append(contentsOf: try collect(self))
+    return values
+  }
+}
+
 extension Inline {
   init?(node: CommonMarkNode) {
     switch node.type {
@@ -47,37 +108,6 @@ extension Inline {
       assertionFailure("Unknown inline type '\(node.typeString)'")
       return nil
     }
-  }
-
-  var text: String {
-    switch self {
-    case .text(let content):
-      return content
-    case .softBreak:
-      return " "
-    case .lineBreak:
-      return "\n"
-    case .code(let content):
-      return content
-    case .html(let content):
-      return content
-    case .emphasis(let children):
-      return children.text
-    case .strong(let children):
-      return children.text
-    case .strikethrough(let children):
-      return children.text
-    case .link(_, let children):
-      return children.text
-    case .image(_, let children):
-      return children.text
-    }
-  }
-}
-
-extension Array where Element == Inline {
-  var text: String {
-    map(\.text).joined()
   }
 }
 

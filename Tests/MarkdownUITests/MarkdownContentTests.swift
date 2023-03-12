@@ -245,9 +245,7 @@ final class MarkdownContentTests: XCTestCase {
     XCTAssertEqual(
       MarkdownContent {
         Paragraph {
-          "Hello"
-          SoftBreak()
-          "World"
+          "Hello World"
         }
       },
       content

@@ -72,15 +72,6 @@ extension Block {
   }
 }
 
-extension Array where Element == Block {
-  init(markdown: String) {
-    let node = CommonMarkNode(markdown: markdown, extensions: .all, options: CMARK_OPT_DEFAULT)
-    let blocks = node?.children.compactMap(Block.init(node:)) ?? []
-
-    self.init(blocks)
-  }
-}
-
 extension ListItem {
   fileprivate init?(node: CommonMarkNode) {
     guard node.type == CMARK_NODE_ITEM else {

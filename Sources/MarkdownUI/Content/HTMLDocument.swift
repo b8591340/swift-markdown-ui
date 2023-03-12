@@ -1,5 +1,4 @@
 import Foundation
-
 @_implementationOnly import cmark_gfm
 @_implementationOnly import libxml2
 
@@ -36,7 +35,19 @@ final class HTMLDocument {
     }
 
     var name: String? {
-      String(cString: nodePtr.pointee.name)
+      guard let name = nodePtr.pointee.name else { return nil }
+      return String(cString: name)
+    }
+
+    var isBlockElement: Bool {
+      guard
+        self.type == XML_ELEMENT_NODE,
+        let name = self.name,
+        let info = htmlTagLookup(name)
+      else {
+        return false
+      }
+      return info.pointee.isinline == 0
     }
 
     subscript(attribute: String) -> String? {
@@ -60,7 +71,11 @@ final class HTMLDocument {
         return []
       }
       return sequence(first: first, next: { $0.pointee.next })
-        .compactMap { Node(nodePtr: $0) }
+        .map(Node.init(nodePtr:))
+        .filter { node in
+          (node.type == XML_TEXT_NODE && node.content != "" && node.content != "\n")
+            || (node.type == XML_ELEMENT_NODE)
+        }
     }
 
     init(nodePtr: htmlNodePtr) {
@@ -76,7 +91,9 @@ final class HTMLDocument {
   }
 
   var body: Node? {
-    root?.children.first(where: { $0.type == XML_ELEMENT_NODE && $0.name == "body" })
+    root?.children.first { node in
+      node.type == XML_ELEMENT_NODE && node.name == "body"
+    }
   }
 
   private let docPtr: htmlDocPtr
@@ -127,11 +144,13 @@ final class HTMLDocument {
 
     // Render the Markdown document to HTML
 
-    let html = String(cString: cmark_render_html(
-      document,
-      CMARK_OPT_NOBREAKS | CMARK_OPT_UNSAFE,
-      parser?.pointee.syntax_extensions
-    ))
+    let html = String(
+      cString: cmark_render_html(
+        document,
+        CMARK_OPT_NOBREAKS | CMARK_OPT_UNSAFE | CMARK_OPT_GITHUB_PRE_LANG,
+        parser?.pointee.syntax_extensions
+      )
+    )
 
     self.init(html: html, options: options)
   }
